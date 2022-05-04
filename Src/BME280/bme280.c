@@ -47,7 +47,9 @@
 
 /*! @file bme280.c
     @brief Sensor driver for BME280 sensor */
+#include "stm32f4xx_hal.h"
 #include "bme280.h"
+
 
 /**\name Internal macros */
 /* To identify osr settings selected by user */
@@ -342,18 +344,27 @@ static void parse_device_settings(const uint8_t *reg_data, struct bme280_setting
  */
 static int8_t reload_device_settings(const struct bme280_settings *settings, const struct bme280_dev *dev);
 
+static int8_t bme280_i2c_read(BME280_HandleTypedef* dev, uint8_t id, uint8_t reg_addr, uint8_t* data, uint16_t len);
+
+static int8_t bme280_i2c_write(BME280_HandleTypedef* dev, uint8_t id, uint8_t reg_addr, uint8_t *data, uint16_t len);
+
+
 /****************** Global Function Definitions *******************************/
 
 /*!
  *  @brief This API is the entry point.
  *  It reads the chip-id and calibration data from the sensor.
  */
-int8_t bme280_init(struct bme280_dev *dev)
+int8_t bme280_init(BME280_HandleTypedef* dev, I2C_HandleTypeDef* i2c, uint8_t addr)
 {
 	int8_t rslt;
 	/* chip id read try count */
 	uint8_t try_count = 5;
 	uint8_t chip_id = 0;
+
+	/* Init data */
+	dev->dev_addr = addr;
+	dev->i2c = i2c;
 
 	/* Check for null pointer in the device structure*/
 	rslt = null_ptr_check(dev);
@@ -374,7 +385,7 @@ int8_t bme280_init(struct bme280_dev *dev)
 				break;
 			}
 			/* Wait for 1 ms */
-			dev->delay_ms(1);
+			HAL_Delay(1);
 			--try_count;
 		}
 		/* Chip id check failed */
@@ -396,11 +407,8 @@ int8_t bme280_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint16_t len, const 
 	rslt = null_ptr_check(dev);
 	/* Proceed if null check is fine */
 	if (rslt == BME280_OK) {
-		/* If interface selected is SPI */
-		if (dev->intf != BME280_I2C_INTF)
-			reg_addr = reg_addr | 0x80;
 		/* Read the data  */
-		rslt = dev->read(dev->dev_id, reg_addr, reg_data, len);
+		rslt = bme280_i2c_read(dev, dev->dev_addr, reg_addr, reg_data, len);
 		/* Check for communication error */
 		if (rslt != BME280_OK)
 			rslt = BME280_E_COMM_FAIL;
@@ -430,11 +438,6 @@ int8_t bme280_set_regs(uint8_t *reg_addr, const uint8_t *reg_data, uint8_t len, 
 	if ((rslt ==  BME280_OK) && (reg_addr != NULL) && (reg_data != NULL)) {
 		if (len != 0) {
 			temp_buff[0] = reg_data[0];
-			/* If interface selected is SPI */
-			if (dev->intf != BME280_I2C_INTF) {
-				for (reg_addr_cnt = 0; reg_addr_cnt < len; reg_addr_cnt++)
-					reg_addr[reg_addr_cnt] = reg_addr[reg_addr_cnt] & 0x7F;
-			}
 			/* Burst write mode */
 			if (len > 1) {
 				/* Interleave register address w.r.t data for
@@ -444,7 +447,7 @@ int8_t bme280_set_regs(uint8_t *reg_addr, const uint8_t *reg_data, uint8_t len, 
 			} else {
 				temp_len = len;
 			}
-			rslt = dev->write(dev->dev_id, reg_addr[0], temp_buff, temp_len);
+			rslt = bme280_i2c_write(dev, dev->dev_addr, reg_addr[0], temp_buff, temp_len);
 			/* Check for communication error */
 			if (rslt != BME280_OK)
 				rslt = BME280_E_COMM_FAIL;
@@ -573,7 +576,7 @@ int8_t bme280_soft_reset(const struct bme280_dev *dev)
 		/* Write the soft reset command in the sensor */
 		rslt = bme280_set_regs(&reg_addr, &soft_rst_cmd, 1, dev);
 		/* As per data sheet, startup time is 2 ms. */
-		dev->delay_ms(2);
+		HAL_Delay(2);
 	}
 
 	return rslt;
@@ -677,6 +680,28 @@ int8_t bme280_compensate_data(uint8_t sensor_comp, const struct bme280_uncomp_da
 
 	return rslt;
 }
+
+static int8_t bme280_i2c_read(BME280_HandleTypedef* dev, uint8_t id, uint8_t reg_addr, uint8_t *data, uint16_t len)
+{
+  if(HAL_I2C_Master_Transmit(dev->i2c, (id << 1), &reg_addr, 1, 10) != HAL_OK) return -1;
+  if(HAL_I2C_Master_Receive(dev->i2c, (id << 1) | 0x01, data, len, 10) != HAL_OK) return -1;
+
+  return 0;
+}
+
+static int8_t bme280_i2c_write(BME280_HandleTypedef* dev, uint8_t id, uint8_t reg_addr, uint8_t *data, uint16_t len)
+{
+  int8_t *buf;
+  buf = malloc(len +1);
+  buf[0] = reg_addr;
+  memcpy(buf +1, data, len);
+
+  if(HAL_I2C_Master_Transmit(dev->i2c, (id << 1), (uint8_t*)buf, len + 1, HAL_MAX_DELAY) != HAL_OK) return -1;
+
+  free(buf);
+  return 0;
+}
+
 
 /*!
  * @brief This internal API sets the oversampling settings for pressure,
@@ -1261,7 +1286,7 @@ static int8_t null_ptr_check(const struct bme280_dev *dev)
 {
 	int8_t rslt;
 
-	if ((dev == NULL) || (dev->read == NULL) || (dev->write == NULL) || (dev->delay_ms == NULL)) {
+	if ((dev == NULL) || (dev->i2c == NULL)) {
 		/* Device structure pointer is not valid */
 		rslt = BME280_E_NULL_PTR;
 	} else {

@@ -102,7 +102,7 @@
 /********************************************************/
 
 #ifndef BME280_FLOAT_ENABLE
-/* #define BME280_FLOAT_ENABLE */
+	#define BME280_FLOAT_ENABLE 
 #endif
 
 #ifndef BME280_FLOAT_ENABLE
@@ -234,24 +234,6 @@
 #define BME280_FILTER_COEFF_16                (0x04)
 
 /*!
- * @brief Interface selection Enums
- */
-enum bme280_intf {
-	/*! SPI interface */
-	BME280_SPI_INTF,
-	/*! I2C interface */
-	BME280_I2C_INTF
-};
-
-/*!
- * @brief Type definitions
- */
-typedef int8_t (*bme280_com_fptr_t)(uint8_t dev_id, uint8_t reg_addr,
-		uint8_t *data, uint16_t len);
-
-typedef void (*bme280_delay_fptr_t)(uint32_t period);
-
-/*!
  * @brief Calibration data
  */
 struct bme280_calib_data {
@@ -286,23 +268,23 @@ struct bme280_calib_data {
  * humidity data
  */
 #ifdef BME280_FLOAT_ENABLE
-struct bme280_data {
+typedef struct bme280_data {
 	/*! Compensated pressure */
 	double pressure;
 	/*! Compensated temperature */
 	double temperature;
 	/*! Compensated humidity */
 	double humidity;
-};
+} BME280_data;
 #else
-struct bme280_data {
+typedef struct bme280_data {
 	/*! Compensated pressure */
 	uint32_t pressure;
 	/*! Compensated temperature */
 	int32_t temperature;
 	/*! Compensated humidity */
 	uint32_t humidity;
-};
+} BME280_data;
 #endif /* BME280_USE_FLOATING_POINT */
 
 /*!
@@ -322,7 +304,7 @@ struct bme280_uncomp_data {
  * @brief bme280 sensor settings structure which comprises of mode,
  * oversampling and filter settings.
  */
-struct bme280_settings {
+typedef struct bme280_settings {
 	/*! pressure oversampling */
 	uint8_t osr_p;
 	/*! temperature oversampling */
@@ -333,29 +315,23 @@ struct bme280_settings {
 	uint8_t filter;
 	/*! standby time */
 	uint8_t standby_time;
-};
+} bme280_settings;
 
 /*!
  * @brief bme280 device structure
  */
-struct bme280_dev {
+typedef struct bme280_dev {
 	/*! Chip Id */
 	uint8_t chip_id;
 	/*! Device Id */
-	uint8_t dev_id;
-	/*! SPI/I2C interface */
-	enum bme280_intf intf;
+	uint8_t dev_addr;
 	/*! Read function pointer */
-	bme280_com_fptr_t read;
-	/*! Write function pointer */
-	bme280_com_fptr_t write;
-	/*! Delay function pointer */
-	bme280_delay_fptr_t delay_ms;
+	I2C_HandleTypeDef* i2c;
 	/*! Trim data */
 	struct bme280_calib_data calib_data;
 	/*! Sensor settings */
 	struct bme280_settings settings;
-};
+} BME280_HandleTypedef;
 
 #endif /* BME280_DEFS_H_ */
 /** @}*/

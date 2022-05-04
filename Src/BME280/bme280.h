@@ -65,12 +65,14 @@ extern "C" {
  *  @brief This API is the entry point.
  *  It reads the chip-id and calibration data from the sensor.
  *
- *  @param[in,out] dev : Structure instance of bme280_dev
+ *  @param[in,out] dev : Structure instance of BME280_HandleTypedef
+ *  @param[in] i2c : I2C handle to use for data transfer
+ *  @param[in] addr : I2C Address of the sensor
  *
  *  @return Result of API execution status
  *  @retval zero -> Success / +ve value -> Warning / -ve value -> Error
  */
-int8_t bme280_init(struct bme280_dev *dev);
+int8_t bme280_init(BME280_HandleTypedef* dev, I2C_HandleTypeDef* i2c, uint8_t addr);
 
 /*!
  * @brief This API writes the given data to the register address

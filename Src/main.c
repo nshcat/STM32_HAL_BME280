@@ -71,38 +71,13 @@ float temperature;
 float humidity;
 float pressure;
 
-struct bme280_dev dev;
-struct bme280_data comp_data;
+BME280_HandleTypedef hbme280;
+BME280_data comp_data;
 int8_t rslt;
 
 char line1[16];
 char line2[16];
 
-int8_t user_i2c_read(uint8_t id, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-  if(HAL_I2C_Master_Transmit(&hi2c1, (id << 1), &reg_addr, 1, 10) != HAL_OK) return -1;
-  if(HAL_I2C_Master_Receive(&hi2c1, (id << 1) | 0x01, data, len, 10) != HAL_OK) return -1;
-
-  return 0;
-}
-
-void user_delay_ms(uint32_t period)
-{
-  HAL_Delay(period);
-}
-
-int8_t user_i2c_write(uint8_t id, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-  int8_t *buf;
-  buf = malloc(len +1);
-  buf[0] = reg_addr;
-  memcpy(buf +1, data, len);
-
-  if(HAL_I2C_Master_Transmit(&hi2c1, (id << 1), (uint8_t*)buf, len + 1, HAL_MAX_DELAY) != HAL_OK) return -1;
-
-  free(buf);
-  return 0;
-}
 
 /* USER CODE END 0 */
 
@@ -138,21 +113,15 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  /* BME280 ÃÊ±âÈ­ */
-  dev.dev_id = BME280_I2C_ADDR_PRIM;
-  dev.intf = BME280_I2C_INTF;
-  dev.read = user_i2c_read;
-  dev.write = user_i2c_write;
-  dev.delay_ms = user_delay_ms;
+  /* BME280 ï¿½Ê±ï¿½È­ */
+  rslt = bme280_init(&hbme280, &hi2c1, BME280_I2C_ADDR_PRIM);
 
-  rslt = bme280_init(&dev);
-
-  /* BME280 ¼³Á¤ */
-  dev.settings.osr_h = BME280_OVERSAMPLING_1X;
-  dev.settings.osr_p = BME280_OVERSAMPLING_16X;
-  dev.settings.osr_t = BME280_OVERSAMPLING_2X;
-  dev.settings.filter = BME280_FILTER_COEFF_16;
-  rslt = bme280_set_sensor_settings(BME280_OSR_PRESS_SEL | BME280_OSR_TEMP_SEL | BME280_OSR_HUM_SEL | BME280_FILTER_SEL, &dev);
+  /* BME280 ï¿½ï¿½ï¿½ï¿½ */
+  hbme280.settings.osr_h = BME280_OVERSAMPLING_1X;
+  hbme280.settings.osr_p = BME280_OVERSAMPLING_16X;
+  hbme280.settings.osr_t = BME280_OVERSAMPLING_2X;
+  hbme280.settings.filter = BME280_FILTER_COEFF_16;
+  rslt = bme280_set_sensor_settings(BME280_OSR_PRESS_SEL | BME280_OSR_TEMP_SEL | BME280_OSR_HUM_SEL | BME280_FILTER_SEL, &hbme280);
 
   /* Initialize */
   HD44780_Init(2);
@@ -168,14 +137,14 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-    /* FORCED ¸ğµå ¼³Á¤, ÃøÁ¤ ÈÄ SLEEP ¸ğµå·Î ÀüÈ¯µÊ */
-    rslt = bme280_set_sensor_mode(BME280_FORCED_MODE, &dev);
-    dev.delay_ms(40);
-    /* µ¥ÀÌÅÍ Ãëµæ */
-    rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev);
+    /* FORCED ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ SLEEP ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯ï¿½ï¿½ */
+    rslt = bme280_set_sensor_mode(BME280_FORCED_MODE, &hbme280);
+    HAL_Delay(40);
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ */
+    rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &hbme280);
     if(rslt == BME280_OK)
     {
-      temperature = comp_data.temperature / 100.0;      /* ¡ÆC  */
+      temperature = comp_data.temperature / 100.0;      /* ï¿½ï¿½C  */
       humidity = comp_data.humidity / 1024.0;           /* %   */
       pressure = comp_data.pressure / 10000.0;          /* hPa */
 
